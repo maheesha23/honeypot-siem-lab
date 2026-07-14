@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Vagrant
+.vagrant/
+
+# VirtualBox logs
+*.log
+
+# Wazuh install output (contains generated passwords - never commit)
+wazuh-install-files.tar
+wazuh-passwords.txt

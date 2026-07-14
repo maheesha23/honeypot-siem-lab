@@ -1,0 +1,74 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+#
+# honeypot-siem-lab — Vagrant topology
+#
+# 3 VMs on an isolated private network (192.168.56.0/24):
+#   attacker    192.168.56.10  - Ubuntu + attack tooling
+#   honeypot    192.168.56.20  - Cowrie (SSH/Telnet) + Suricata + Wazuh agent
+#   monitoring  192.168.56.30  - Wazuh all-in-one (indexer + manager + dashboard)
+#
+# Each VM keeps its default NAT adapter for internet access during
+# provisioning (apt-get, pip, curl). The private_network adapter below
+# is what forms the isolated "honeynet" - it does not route to your
+# real LAN or the internet.
+
+Vagrant.configure("2") do |config|
+
+  config.vm.box = "ubuntu/jammy64"
+
+  # ---------------------------------------------------------------
+  # Attacker VM
+  # ---------------------------------------------------------------
+  config.vm.define "attacker" do |attacker|
+    attacker.vm.hostname = "attacker"
+    attacker.vm.network "private_network", ip: "192.168.56.10"
+
+    attacker.vm.provider "virtualbox" do |vb|
+      vb.name = "honeypot-lab-attacker"
+      vb.memory = 2048
+      vb.cpus = 2
+    end
+
+    attacker.vm.provision "shell", path: "provision/attacker.sh"
+  end
+
+  # ---------------------------------------------------------------
+  # Honeypot VM
+  # ---------------------------------------------------------------
+  config.vm.define "honeypot" do |honeypot|
+    honeypot.vm.hostname = "honeypot"
+    honeypot.vm.network "private_network", ip: "192.168.56.20"
+
+    honeypot.vm.provider "virtualbox" do |vb|
+      vb.name = "honeypot-lab-honeypot"
+      vb.memory = 2048
+      vb.cpus = 2
+    end
+
+    # Shared folder gives provisioning scripts access to /configs
+    honeypot.vm.synced_folder "../configs", "/vagrant_configs"
+
+    honeypot.vm.provision "shell", path: "provision/honeypot.sh", env: {
+      "WAZUH_MANAGER_IP" => "192.168.56.30"
+    }
+  end
+
+  # ---------------------------------------------------------------
+  # Monitoring VM (Wazuh SIEM)
+  # ---------------------------------------------------------------
+  config.vm.define "monitoring" do |monitoring|
+    monitoring.vm.hostname = "monitoring"
+    monitoring.vm.network "private_network", ip: "192.168.56.30"
+
+    monitoring.vm.provider "virtualbox" do |vb|
+      vb.name = "honeypot-lab-monitoring"
+      # Wazuh all-in-one needs headroom - don't go below 4GB
+      vb.memory = 4096
+      vb.cpus = 2
+    end
+
+    monitoring.vm.provision "shell", path: "provision/monitoring.sh"
+  end
+
+end
