@@ -1,0 +1,12 @@
+# Ensure shell scripts always use LF line endings, even when checked out
+# on Windows. CRLF line endings in .sh files break bash inside Linux VMs
+# (e.g. "bad interpreter" or "$'\r': command not found" errors).
+*.sh text eol=lf
+
+# Vagrantfile is Ruby - also enforce LF for consistency
+Vagrantfile text eol=lf
+
+# Config files used inside Linux VMs
+*.cfg text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
