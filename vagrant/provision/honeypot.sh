@@ -81,6 +81,12 @@ fi
 echo "==> Patching Suricata interface to match this VM's NIC (enp0s3)"
 sed -i 's/interface: eth0/interface: enp0s3/' /etc/suricata/suricata.yaml
 
+echo "==> Downloading Suricata detection rules (Emerging Threats Open)"
+suricata-update
+
+echo "==> Pointing Suricata at the suricata-update rule output path"
+sed -i 's|default-rule-path: /etc/suricata/rules|default-rule-path: /var/lib/suricata/rules|' /etc/suricata/suricata.yaml
+
 echo "==> Enabling and starting Suricata"
 systemctl enable suricata
 systemctl restart suricata

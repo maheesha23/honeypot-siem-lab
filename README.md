@@ -51,27 +51,27 @@ This lab deploys a network of honeypot services inside an isolated virtual netwo
 ## Architecture
 
 ```
-                     ┌───────────────────────┐
-                     │   Attacker VM (Kali)  │
-                     └───────────┬───────────┘
+                     ┌────────────────────────┐
+                     │   Attacker VM (Kali)   │
+                     └───────────┬────────────┘
                                  │  (Internal Network only)
-                     ┌───────────▼───────────┐
+                     ┌───────────▼────────────┐
                      │   Honeypot VM (T-Pot)  │
                      │  Cowrie / Dionaea /    │
                      │  Glastopf / Conpot /   │
                      │      Suricata          │
-                     └───────────┬───────────┘
+                     └───────────┬────────────┘
                                  │  logs
-                     ┌───────────▼───────────┐
+                     ┌───────────▼────────────┐
                      │  Monitoring VM         │
                      │  ELK / Wazuh SIEM      │
                      │  + Threat Intel Enrich │
-                     └───────────┬───────────┘
+                     └───────────┬────────────┘
                                  │
-                     ┌───────────▼───────────┐
+                     ┌───────────▼────────────┐
                      │ Dashboards + MITRE     │
                      │ ATT&CK Mapping         │
-                     └───────────────────────┘
+                     └────────────────────────┘
 ```
 
 All VMs communicate over a VirtualBox **Internal Network** (`honeynet`) with no route to the host's real LAN or the internet. See [`docs/architecture.md`](docs/architecture.md) for full network diagrams and design rationale.
