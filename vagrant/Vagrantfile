@@ -16,6 +16,7 @@
 Vagrant.configure("2") do |config|
 
   config.vm.box = "ubuntu/jammy64"
+  config.vm.boot_timeout = 600
 
   # ---------------------------------------------------------------
   # Attacker VM
@@ -42,7 +43,7 @@ Vagrant.configure("2") do |config|
 
     honeypot.vm.provider "virtualbox" do |vb|
       vb.name = "honeypot-lab-honeypot"
-      vb.memory = 2048
+      vb.memory = 3072
       vb.cpus = 2
     end
 
