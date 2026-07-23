@@ -100,10 +100,15 @@ chmod 644 /usr/share/keyrings/wazuh.gpg
 echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main" | tee /etc/apt/sources.list.d/wazuh.list
 apt-get update -y
 
-WAZUH_MANAGER="$WAZUH_MANAGER_IP" apt-get install -y wazuh-agent
+WAZUH_MANAGER="$WAZUH_MANAGER_IP" apt-get install -y wazuh-agent=4.9.2-1
+apt-mark hold wazuh-agent
 
 echo "==> Configuring Wazuh agent to monitor Cowrie and Suricata logs"
-sed -i "s|<address>MANAGER_IP</address>|<address>${WAZUH_MANAGER_IP}</address>|" /var/ossec/etc/ossec.conf 2>/dev/null || true
+# Matches the placeholder OR any previously-set IP, so this stays correct
+# even if this step runs again after a manual reinstall regenerates the
+# default config (which happened during testing - apt reinstalling the
+# package restores the MANAGER_IP placeholder, silently undoing this fix).
+sed -i "s|<address>[^<]*</address>|<address>${WAZUH_MANAGER_IP}</address>|" /var/ossec/etc/ossec.conf
 
 # Add localfile blocks for Cowrie's json log and Suricata's eve.json
 # (idempotent-ish: only appends if not already present)
@@ -117,6 +122,20 @@ if ! grep -q "cowrie.json" /var/ossec/etc/ossec.conf; then
     <log_format>json</log_format>\
     <location>/var/log/suricata/eve.json</location>\
   </localfile>' /var/ossec/etc/ossec.conf
+fi
+
+echo "==> Enrolling this agent with the Wazuh manager (${WAZUH_MANAGER_IP})"
+# Requires the monitoring VM to already be up and wazuh-authd listening
+# on port 1515. If monitoring isn't up yet, this is skipped with a warning
+# rather than failing the whole provisioning run - re-run manually later:
+#   sudo /var/ossec/bin/agent-auth -m <manager-ip>
+if timeout 5 bash -c "cat < /dev/null > /dev/tcp/${WAZUH_MANAGER_IP}/1515" 2>/dev/null; then
+    /var/ossec/bin/agent-auth -m "${WAZUH_MANAGER_IP}"
+else
+    echo "    WARNING: Manager not reachable on port 1515 yet - skipping enrollment."
+    echo "    Once the monitoring VM is up, run on this VM:"
+    echo "      sudo /var/ossec/bin/agent-auth -m ${WAZUH_MANAGER_IP}"
+    echo "      sudo systemctl restart wazuh-agent"
 fi
 
 echo "==> Enabling and starting Wazuh agent"
