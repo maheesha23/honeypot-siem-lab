@@ -1,10 +1,8 @@
-# Industrial Honeypot Lab (Offline / VM-Isolated)
+# Honeypot SIEM Lab (Offline / VM-Isolated)
 
 A fully self-contained honeypot and SIEM lab built entirely with **free and open-source tools**, designed to run inside isolated virtual machines on a single host — **no real internet exposure required**.
 
-This project simulates an industrial-style security operations setup: multiple honeypot services, centralized log aggregation, threat intelligence enrichment, and attacker behavior mapped to the **MITRE ATT&CK** framework — all reproducible from a single `vagrant up`.
-
-> **Status:** Work in progress. This repository is currently private during development and will be made public once the lab is fully tested and documented.
+This project deploys a working honeypot service, a network intrusion detection engine, and a SIEM pipeline that captures and displays attacker behavior — reproducible from a single `vagrant up`.
 
 ---
 
@@ -18,7 +16,6 @@ This project simulates an industrial-style security operations setup: multiple h
 - [Attack Scenarios](#attack-scenarios)
 - [MITRE ATT&CK Mapping](#mitre-attck-mapping)
 - [Sample Findings](#sample-findings)
-- [Roadmap](#roadmap)
 - [Ethical Use Statement](#ethical-use-statement)
 - [License](#license)
 
@@ -26,12 +23,12 @@ This project simulates an industrial-style security operations setup: multiple h
 
 ## Overview
 
-This lab deploys a network of honeypot services inside an isolated virtual network, generates realistic attacker traffic from a dedicated attacker VM, and feeds all captured activity into a SIEM pipeline for analysis and visualization.
+This lab deploys a honeypot service inside an isolated virtual network, generates realistic attacker traffic from a dedicated attacker VM, and feeds all captured activity into a SIEM pipeline for analysis.
 
 **Key goals:**
-- Demonstrate a multi-service honeypot deployment (SSH/Telnet, web, malware capture, ICS/SCADA)
-- Centralize and correlate logs through an open-source SIEM
-- Enrich captured indicators (IPs, hashes) using free threat intelligence feeds
+- Demonstrate a real SSH/Telnet honeypot deployment with full session logging
+- Detect and log network-layer attack traffic with an IDS
+- Centralize both into a SIEM with agent-based log forwarding
 - Map observed attacker behavior to MITRE ATT&CK techniques
 - Keep the entire lab reproducible, offline, and free to run
 
@@ -39,12 +36,12 @@ This lab deploys a network of honeypot services inside an isolated virtual netwo
 
 | Component | Tool |
 |---|---|
-| Honeypot suite | T-Pot (Cowrie, Dionaea, Glastopf, Conpot, Suricata) |
-| SIEM / log pipeline | ELK Stack / OpenSearch + Wazuh |
-| Threat intel enrichment | AbuseIPDB, AlienVault OTX, VirusTotal (free tiers) |
-| Attack simulation | Kali Linux, Hydra, Nmap, Nikto, SQLmap, MITRE Caldera |
+| Honeypot | Cowrie (SSH/Telnet), full session and credential logging |
+| Network IDS | Suricata, running the Emerging Threats Open ruleset |
+| SIEM | Wazuh (indexer + manager + dashboard, all-in-one) |
+| Attack simulation | Hydra (brute force), Nmap (service/port scanning) |
 | Environment automation | Vagrant + VirtualBox |
-| Technique mapping | MITRE ATT&CK Navigator |
+| Technique mapping | MITRE ATT&CK (manual mapping, see `docs/mitre-mapping.md`) |
 
 ---
 
@@ -52,45 +49,41 @@ This lab deploys a network of honeypot services inside an isolated virtual netwo
 
 ```
                      ┌────────────────────────┐
-                     │   Attacker VM (Kali)   │
+                     │   Attacker VM          │
+                     │   (Hydra, Nmap)        │
                      └───────────┬────────────┘
                                  │  (Internal Network only)
                      ┌───────────▼────────────┐
-                     │   Honeypot VM (T-Pot)  │
-                     │  Cowrie / Dionaea /    │
-                     │  Glastopf / Conpot /   │
-                     │      Suricata          │
+                     │   Honeypot VM          │
+                     │   Cowrie (SSH/Telnet)  │
+                     │   Suricata (IDS)       │
                      └───────────┬────────────┘
-                                 │  logs
+                                 │  logs (Wazuh agent)
                      ┌───────────▼────────────┐
                      │  Monitoring VM         │
-                     │  ELK / Wazuh SIEM      │
-                     │  + Threat Intel Enrich │
-                     └───────────┬────────────┘
-                                 │
-                     ┌───────────▼────────────┐
-                     │ Dashboards + MITRE     │
-                     │ ATT&CK Mapping         │
+                     │  Wazuh SIEM            │
+                     │  (indexer/manager/     │
+                     │   dashboard)           │
                      └────────────────────────┘
 ```
 
-All VMs communicate over a VirtualBox **Internal Network** (`honeynet`) with no route to the host's real LAN or the internet. See [`docs/architecture.md`](docs/architecture.md) for full network diagrams and design rationale.
+All VMs communicate over a Vagrant **private network** (`192.168.56.0/24`) that does not route to your real LAN or the internet. Each VM also keeps its default NAT adapter for provisioning-time internet access only (installing packages). See [`docs/architecture.md`](docs/architecture.md) for full design rationale.
 
 ---
 
 ## Prerequisites
 
-- [VirtualBox](https://www.virtualbox.org/) (free) or VMware Workstation Player (free for personal use)
+- [VirtualBox](https://www.virtualbox.org/) (free)
 - [Vagrant](https://www.vagrantup.com/) (free)
-- Host machine: 16GB+ RAM recommended (8GB minimum with a slimmed-down honeypot profile)
-- ~60GB free disk space across all VMs
+- Host machine: 12GB+ RAM recommended (the monitoring VM alone needs 4GB for Wazuh's indexer)
+- ~40GB free disk space across all VMs
 
 ---
 
 ## Quickstart
 
 ```bash
-git clone https://github.com/<your-username>/honeypot-siem-lab.git
+git clone https://github.com/maheesha23/honeypot-siem-lab.git
 cd honeypot-siem-lab/vagrant
 
 # Bring up all three VMs (attacker, honeypot, monitoring)
@@ -101,11 +94,14 @@ vagrant ssh attacker
 cd /vagrant/attack-scripts
 ./brute_force.sh
 
-# View the SIEM dashboard
-# (Kibana/Wazuh URL and default credentials printed at end of provisioning)
+# View the SIEM dashboard at https://192.168.56.30/
+# (self-signed certificate - browser warning is expected)
+# Credentials: see the monitoring VM provisioning output, or:
+#   sudo tar -xf /root/wazuh-install-files.tar -C /root/
+#   sudo cat /root/wazuh-install-files/wazuh-passwords.txt
 ```
 
-Full step-by-step instructions: [`docs/setup-guide.md`](docs/setup-guide.md)
+Full step-by-step instructions, including troubleshooting for common issues: [`docs/setup-guide.md`](docs/setup-guide.md)
 
 ---
 
@@ -116,25 +112,25 @@ honeypot-siem-lab/
 ├── README.md
 ├── LICENSE
 ├── .gitignore
+├── .gitattributes
 ├── docs/
 │   ├── architecture.md       # Network design and diagrams
-│   ├── setup-guide.md        # Full setup walkthrough
+│   ├── setup-guide.md        # Full setup walkthrough + troubleshooting
 │   ├── attack-scenarios.md   # Scripted attacks and expected results
 │   └── mitre-mapping.md      # ATT&CK technique mapping table
 ├── vagrant/
 │   ├── Vagrantfile
 │   └── provision/
-│       ├── honeypot.sh       # Installs T-Pot / Cowrie / Dionaea
-│       ├── monitoring.sh     # Installs ELK / Wazuh
-│       └── attacker.sh       # Installs Kali attack tooling
+│       ├── honeypot.sh       # Installs Cowrie + Suricata + Wazuh agent
+│       ├── monitoring.sh     # Installs Wazuh all-in-one SIEM
+│       └── attacker.sh       # Installs attack tooling
 ├── configs/
-│   ├── cowrie.cfg
-│   ├── suricata.yaml
+│   ├── cowrie.cfg            # Empty by design - see setup-guide.md
+│   ├── suricata.yaml         # Empty by design - see setup-guide.md
 │   └── wazuh-rules/
 ├── attack-scripts/
-│   ├── brute_force.sh
-│   ├── port_scan.sh
-│   └── sqli_test.py
+│   ├── brute_force.sh        # SSH brute force against Cowrie
+│   └── port_scan.sh          # Nmap service scan against the honeypot
 ├── sample-logs/               # Sanitized example output
 └── screenshots/               # Dashboard and result screenshots
 ```
@@ -143,14 +139,12 @@ honeypot-siem-lab/
 
 ## Attack Scenarios
 
-Each scenario is scripted and repeatable, so results are consistent for anyone running the lab. See [`docs/attack-scenarios.md`](docs/attack-scenarios.md) for full details.
+Each scenario is scripted and repeatable. See [`docs/attack-scenarios.md`](docs/attack-scenarios.md) for full details and expected log output.
 
-| Scenario | Script | Target Honeypot | Technique |
+| Scenario | Script | Target | MITRE Technique |
 |---|---|---|---|
-| SSH brute force | `attack-scripts/brute_force.sh` | Cowrie | Credential Access |
-| Network/service scan | `attack-scripts/port_scan.sh` | All | Discovery |
-| Web SQL injection | `attack-scripts/sqli_test.py` | Glastopf | Initial Access |
-| Malware drop simulation | (Caldera profile) | Dionaea | Execution |
+| SSH brute force | `attack-scripts/brute_force.sh` | Cowrie (port 2222) | T1110 - Brute Force |
+| Network/service scan | `attack-scripts/port_scan.sh` | Honeypot VM | T1046 - Network Service Discovery |
 
 ---
 
@@ -162,26 +156,12 @@ Captured behaviors are tagged against MITRE ATT&CK techniques to give the raw lo
 |---|---|---|
 | SSH credential brute forcing | T1110 | Credential Access |
 | Network service scanning | T1046 | Discovery |
-| Exploitation of web application | T1190 | Initial Access |
-| Command execution post-compromise | T1059 | Execution |
 
 ---
 
 ## Sample Findings
 
-Dashboard screenshots and sanitized log excerpts are available in [`screenshots/`](screenshots/) and [`sample-logs/`](sample-logs/) once the lab has been run through its first full scenario pass.
-
----
-
-## Roadmap
-
-- [ ] Finalize Vagrant provisioning scripts
-- [ ] Complete Wazuh rule tuning for honeypot log sources
-- [ ] Integrate free threat intel enrichment script
-- [ ] Run full attack scenario pass and capture sample logs
-- [ ] Write up MITRE ATT&CK mapping results
-- [ ] Record demo walkthrough
-- [ ] Make repository public
+Sanitized log excerpts from real attack runs are available in [`sample-logs/`](sample-logs/). Dashboard screenshots will be added to [`screenshots/`](screenshots/) as the lab is run through further scenarios.
 
 ---
 
